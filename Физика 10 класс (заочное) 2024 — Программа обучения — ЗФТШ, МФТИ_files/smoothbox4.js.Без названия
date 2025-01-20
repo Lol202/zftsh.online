@@ -1,0 +1,348 @@
+var Smoothbox = {instance: !1, bind: function(a) {
+        ("element" == $type(a) ? a.getElements("a.smoothbox") : "string" == $type(a) ? $$(a) : $$("a.smoothbox")).each(function(a) {
+            if ("a" == a.get("tag") && !a.retrieve("smoothboxed", !1)) {
+                var c = Function.attempt(function() {
+                    var c = JSON.decode(a.title);
+                    $type(c.title) ? a.title = c.title : a.title = "";
+                    return c
+                }, function() {
+                    return{}
+                });
+                c.url = a.href;
+                a.store("smoothbox", c);
+                a.store("smoothboxed", !0);
+                a.addEvent("click", function(c) {
+                    c.stop();
+                    var params = {};
+                    if (a.hasClass("smoothbox_modal")){
+                        params.noOverlayClose = 1;
+                    }
+                    Smoothbox.open(a, params)
+                })
+            }
+        })
+    }, close: function() {
+        this.instance &&
+                this.instance.close()
+    }, open: function(a, b) {
+        /*DOPIL*/if (a instanceof Element){
+            //{width:720, height:840, autoResize:true}
+            for(var i = 0;i < a.attributes.length;i++){
+                var attr = a.attributes[i];
+                if (attr.name.indexOf('smoothbox-')==0){
+                    if (typeof b != 'object'  || b===null){ b = {}; }
+                    let option = attr.name.split('smoothbox-')[1];
+                    if (option == 'nooverlayclose') option = 'noOverlayClose';
+                    b[option] = attr.value;
+                }
+            }
+        }
+        if (!b) b = {};
+        if (!b.css_class)  b.css_class = 'popup_default';
+        var isText = false;
+        /*HACK*/if (typeof a == 'string' && a.indexOf('http')!==0 && a.indexOf('//')!==0) {
+            a = '<div class="textSmootbox">' + a + '</div>';
+            isText = true;
+        }
+        /*MOBILE REPAIR*/
+        if (jQuery('meta[name=viewport]').length) jQuery('meta[name=viewport]').attr('content', jQuery('meta[name=viewport]').attr('content') + ',user-scalable=0');
+        /*REPAIR OK*/
+        if (this.instance) {
+            var c = this;
+            this.instance.addEvent("closeafter", function() {
+                c.open(a)
+            });
+            this.instance.close()
+        }
+
+        "object" == $type(b) ? b = new Hash(b) : "hash" != $type(b) && (b = new Hash);
+
+        "element" == $type(a) ? a = "a" == a.get("tag").toLowerCase() ? new Hash({mode: "Iframe", link: a, element: a, url: a.get("href"), title: a.get("title")}) : new Hash({mode: "Inline", title: a.get("title"), element: a}) : "string" == $type(a) ?
+            a = 4E30 > a.length && ("/" == a.substring(0, 1) || "." == a.substring(0, 1) || "http" == a.substring(0, 4) || !a.match(/[ <>"'{}|^~\[\]`]/)) ? new Hash({mode: "Iframe", url: a}) : new Hash({mode: "String", bodyText: a}) : "object" != $type(a) && "hash" != $type(a) && (a = new Hash);
+        a.extend(b);
+        var d = a.get("mode");
+        a.erase("mode");
+        if (!d)
+            if (a.has("url"))
+                d = "Iframe";
+            else if (a.has("element"))
+                d = "Inline";
+            else if (a.has("bodyText"))
+                d = "String";
+            else
+                return;
+        $type(Smoothbox.Modal[d]) && (this.instance = new Smoothbox.Modal[d](a.getClean()));
+        if (isText && typeof b.height == 'undefined'){
+            //Smoothbox.instance.doAutoResize();
+        }
+
+    }};
+Smoothbox.Modal = new Class({Implements: [Events, Options], options: {url: null, width: 480, height: 320, transitions: !1, overlay: !0, loading: !0, noOverlayClose: !1, autoResize: !0, autoFormat: "smoothbox"}, eventProto: {}, overlay: !1, window: !1, content: !1, loading: !1, initialize: function(a) {
+        this.setOptions(a);
+        this.onOpen();
+        this.load()
+    }, close: function() {
+        jQuery(window.popupBluringClasses).removeClass('blurred');
+        /*MOBILE REPAIR*/
+        if (jQuery('meta[name=viewport]').length) jQuery('meta[name=viewport]').attr('content', jQuery('meta[name=viewport]').attr('content').replace(',user-scalable=0', '') );
+        /**/
+        this.onClose();
+        window.removeEvent("scroll", this.eventProto.scroll);
+        window.removeEvent("resize", this.eventProto.resize);
+        this.options.transitions ? (this.addEvent("closeafter",
+                function() {
+                    this.window && this.window.destroy();
+                    this.overlay && this.overlay.destroy();
+                    this.loading && this.loading.destroy()
+                }.bind(this)), this.hide()) : (this.window && this.window.destroy(), this.overlay && this.overlay.destroy(), this.loading && this.loading.destroy());
+        Smoothbox.instance = !1
+    }, load: function() {
+        this.create();
+        var a = this;
+        this.eventProto.resize = function() {
+            a.positionWindow();
+        };
+        this.eventProto.scroll = function() {
+            a.positionWindow()
+        };
+        window.addEvent("resize", this.eventProto.resize);
+        window.addEvent("scroll", this.eventProto.scroll);
+        this.positionLoading();
+        this.showOverlay();
+        this.showLoading();
+
+    }, create: function() {
+        this.createOverlay();
+        this.createLoading();
+        this.createWindow();
+         
+    }, createLoading: function() {
+        !this.loading && this.options.loading && (this.loading = new Element("div", {id: "TB_load"}), this.loading.inject(document.body), (new Element("img", {src: "/externals/smoothbox/loading.gif"})).inject(this.loading))
+    }, createOverlay: function() {
+        !this.overlay && this.options.overlay && (this.overlay = new Element("div",
+                {id: "TB_overlay", styles: {position: "fixed", top: "0px", left: "0px", bottom: "0px", right: "0px", visibility: "visible"}, opacity: 0}), this.overlay.inject(document.body), this.options.noOverlayClose || this.overlay.addEvent("click", function() {
+            this.close()
+        }.bind(this)))
+    }, createWindow: function() {
+        if (!this.window) {
+            var a = this;
+            this.window = new Element("div", {id: "TB_window", opacity: 0, class: this.options.css_class});
+            this.window.inject(document.body);
+            var b = new Element("div", {id: "TB_title"});
+            b.inject(this.window);
+            (new Element("div", {id: "TB_ajaxWindowTitle", html: this.options.title})).inject(b);
+            var c = new Element("div", {id: "TB_closeAjaxWindow", events: {click: function() {
+                        a.close()
+                    }}});
+            c.inject(b);
+            (new Element("a", {id: "TB_title", href: "javascript:void(0);", title: "close", html: "close", events: {click: function() {
+                        a.close()
+                    }}})).inject(c)
+        }
+    }, position: function() {
+        this.positionWindow();
+        this.positionLoading()
+    }, positionLoading: function() {
+        this.loading && (Browser.Engine.trident && (this.loading.style.display = ""), this.loading.setStyles({left: window.getScroll().x + (window.getSize().x - 56) / 2 +
+                    "px", top: window.getScroll().y + (window.getSize().y - 20) / 2 + "px", display: "block"}));
+    }, positionWindow: function() {
+        if (!this.window) return;
+        if (this.loadingActive) return;
+        if (Browser.ie) this.window.style.display = "";
+        
+        var popup = jQuery(this.window);
+        var content = jQuery(this.content);
+        if ( window.getSize().x <=550)
+        {
+            popup.css('width', '').css('max-width', this.options.width + "px");
+        }else{
+            popup.css('width',  this.options.width + "px");
+        }
+        var yPadding = (window.getSize().y - this.options.height) / 2;
+        var xPadding = (window.getSize().x - this.options.width) / 2;
+        if (yPadding < 30){
+            yPadding = 30;
+            popup.css('max-height',  (window.innerHeight-60) + "px");
+            content.css('max-height',  (window.innerHeight-60) + "px"); 
+        }
+        popup.css('left', (window.getScroll().x + xPadding)  + "px")
+             .css('top',  (window.getScroll().y + yPadding)+"px");
+    }, show: function() {
+        this.showOverlay();
+        this.showLoading();
+        this.showWindow()
+    }, showLoading: function() {
+        this.loadingActive = true;
+        this.loading && (Browser.Engine.trident && (this.loading.style.display = ""), this.options.transitions ? this.loading.tween("opacity", [0, 1]) : (this.loading.setStyle("opacity", 1), this.loading.setStyle("visibility", "visible")))
+    }, showOverlay: function() {
+        this.overlay && (Browser.Engine.trident && (this.overlay.style.display =
+                ""), this.options.transitions ? this.overlay.tween("opacity", [0, .3]) : (this.overlay.setStyle("opacity", .3), this.overlay.setStyle("visibility", "visible")));
+        if (typeof window.orientation == 'undefined' /*window.orientation defined only on mobile devices*/){
+            jQuery(window.popupBluringClasses).addClass('blurred');
+        }
+    }, showWindow: function() {
+        this.window && (Browser.Engine.trident && (this.window.style.display = ""), "function" == typeof this.doAutoResize && this.doAutoResize(), this.options.transitions ? this.window.tween("opacity", [0, 1]) : (this.window.setStyle("opacity", 1), this.window.setStyle("visibility", "visible")))
+    }, hide: function() {
+        jQuery(window.popupBluringClasses).removeClass('blurred');
+        this.hideLoading();
+        this.hideOverlay();
+        this.hideWindow()
+    },
+    hideLoading: function() {
+        this.loadingActive = false;
+        this.loading && (this.options.transitions ? this.loading.tween("opacity", [1, 0]) : this.loading.setStyle("opacity", 0))
+    }, hideOverlay: function() {
+        this.overlay && (this.options.transitions ? this.overlay.tween("opacity", [.3, 0]) : this.overlay.setStyle("opacity", 0))
+    }, hideWindow: function() {
+        if (this.options.transitions) {
+            var a = this;
+            this.window.tween("opacity", [1, 0]);
+            this.window.get("tween").addEvent("complete", function() {
+                a.fireEvent("closeafter")
+            })
+        } else
+            this.window.setStyle("opacity", 0)
+    }, doAutoResize: function(a) {
+        if (a &&
+                this.options.autoResize) {
+            var contentSize = Function.attempt(function() {
+                return a.getScrollSize()
+            }, function() {
+                return a.getSize()
+            }, function() {
+                return{x: a.scrollWidth, y: a.scrollHeight}
+            }), wsize = window.getSize();
+            contentSize.x - 70 > wsize.x && (contentSize.x = wsize.x - 70);
+            contentSize.y - 70 > wsize.y && (contentSize.y = wsize.y - 70);
+            
+            var hasWidth = parseInt(jQuery(this.content).css('width'));
+            var hasHeight = parseInt(jQuery(this.content).css('height'));
+            var newWid = contentSize.x + (this.options.clear_height?0:17);
+            var newHei = contentSize.y + (this.options.clear_height?0:1);
+            if (!this.firstAutoResize || Math.abs(hasWidth - newWid) > 30){
+                jQuery(this.content).css('width', newWid + "px");
+                this.options.width = newWid;
+                this.firstAutoResize = true;
+            }
+            
+            jQuery(this.content).css('height', newHei + "px");
+            this.options.height = newHei;
+        }
+        this.positionWindow();
+    }, onLoad: function() {
+        this.fireEvent("load", this)
+    },
+    /*HACK*/
+    keypress: function(e){
+        if (e.key=="enter"){
+            if (jQuery('textarea', jQuery(this.content)).length) return;
+            var btn = jQuery('#TB_ajaxContent button:visible:first');
+            btn.trigger('click');
+        }else if (e.key=="esc"){
+            Smoothbox.instance.close();
+        }
+    }, onOpen: function() {
+        this.fireEvent("open", this);
+        /*HACK*/
+        jQuery('input:visible:first', jQuery(this.content)).focus();
+        window.addEvent("keypress", this.keypress);
+    }, onClose: function() {
+        this.fireEvent("close",
+                this);
+        if (window.jQuery) jQuery(this.window).trigger('close');
+        window.removeEvent("keypress", this.keypress);
+    }, onCloseAfter: function() {
+        this.fireEvent("closeafter", this)
+    }});
+Smoothbox.Modal.Iframe = new Class({Extends: Smoothbox.Modal, load: function() {
+        if (!this.content) {
+            this.parent();
+            var a = !0;
+            let url = this.options.url;
+            if (this.options.autoFormat){
+                let hasFmt =  url.indexOf('&format='+this.options.autoFormat)!=-1 ||url.indexOf('?format='+this.options.autoFormat)!=-1;
+                if (!hasFmt){
+                    url += (url.indexOf('?')!=-1 ? '&' : '?')+'format='+this.options.autoFormat;
+                }
+            }
+            this.content = new IFrame({src: url, id: "TB_iframeContent", name: "TB_iframeContent", class: this.options.css_class, frameborder: "0", width: this.options.width, height: this.options.height + 20, events: {load: function() {
+                        a ? (a = !1, this.hideLoading(), this.showWindow(), this.onLoad()) : this.doAutoResize()
+                    }.bind(this)}});
+            this.content.inject(this.window)
+        }
+    },
+    doAutoResize: function() {
+        if (this.options.autoResize) {
+            var a = this.content, b = Function.attempt(function() {
+                return a.contentWindow.location.host
+            });
+            if (b && b == window.location.host) {
+                if (1 == this.options.autoResize)
+                     b = Function.attempt(function() {
+                        var el = a.contentWindow.document.body.getChildren()[0];
+                         if (el.getScrollSize().y < 40){
+                             el = a.contentWindow.document.body.getChildren()[1];
+                         }
+                         if (!el){
+                             throw 1;
+                         }
+                        return el;
+                    }, function() {
+                        return a.contentWindow.document.body
+                    }, function() {
+                        return a.contentWindow.document.documentElement
+                    });
+                this.parent(b);
+                return b;
+                if ("element" == $type(this.options.autoResize))
+                    return this.parent(a.contentWindow.$(this.options.autoResize))
+            }
+        }else{
+            this.positionWindow();
+        }
+    }});
+Smoothbox.Modal.Request = new Class({Extends: Smoothbox.Modal, load: function() {
+        if (!this.content) {
+            this.parent();
+            var a = this, b = this.options.requestData || {};
+            this.autoFormat && (b.format = this.autoFormat);
+            (new Request.HTML({url: this.options.url, method: this.options.requestMethod || "get", data: b, onSuccess: function(b, d, e, f) {
+                    a.content = new Element("div", {id: "TB_ajaxContent", class: a.options.css_class, width: a.options.width, height: a.options.height, html: e});
+                    a.content.inject(a.window);
+                    a.hideLoading();
+                    a.showWindow();
+                    a.onLoad()
+                }})).send()
+        }
+    }});
+Smoothbox.Modal.Inline = new Class({Extends: Smoothbox.Modal, element: !1, load: function() {
+        this.content || (this.parent(), this.content = new Element("div", {id: "TB_ajaxContent", class: this.options.css_class, width: this.options.width, height: this.options.height}), this.content.inject(this.window), this.element.clone().inject(this.content), this.hideLoading(), this.showWindow(), this.onLoad())
+    }, setOptions: function(a) {
+        this.element = $(a.element);
+        this.parent(a)
+    }, doAutoResize: function() {
+        if (this.options.autoResize) {
+            var a = this, b = Function.attempt(function() {
+                return a.content.getChildren()[0]
+            });
+            return this.parent(b)
+        }
+    }
+});
+Smoothbox.Modal.String = new Class({Extends: Smoothbox.Modal, load: function() {
+        this.content || (this.parent(), this.content = new Element("div", {id: "TB_ajaxContent", class: this.options.css_class, width: this.options.width, height: this.options.height, html: "<div>" + this.options.bodyText + "</div>"}), this.content.inject(this.window), this.hideLoading(), this.showWindow(), this.onLoad())
+    }, doAutoResize: function() {
+        if (this.options.autoResize) {
+            var a = this, b = Function.attempt(function() {
+                return a.content.getChildren()[0]
+            });
+            return this.parent(b)
+        }
+    }});
+Smoothbox.Modal.Image = new Class({Extends: Smoothbox.Modal});
+window.addEvent("domready", function() {
+    Smoothbox.bind()
+});
+window.addEvent("load", function() {
+    Smoothbox.bind()
+});

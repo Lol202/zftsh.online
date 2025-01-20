@@ -1,0 +1,125 @@
+jQuery(document).ready(function(){
+    /*common functions*/
+    window.resultTestPopup = function(popupPointer, data, popupTitle, userLabel, isExcluded = false, additionalTests = []){
+        let $ = jQuery;
+        if (typeof window.resultTestPopup.lastPopupId == 'undefined') window.resultTestPopup.lastPopupId = '';
+        var html = '';
+        if (!data && !additionalTests.length){
+            return;
+        }
+        if (data){
+            html = '<table class="olympic_member_popup_info">';
+            html += '<tr><td>'+popupTitle+'</td><td>'+userLabel+'</td></tr>';
+            if (isExcluded){
+                html += '<tr><td colspan="2" style="color:red;font-weight:bold;">Исключён</td></tr>';
+            }
+            /* TODO */
+            html += '<tr><td>Баллы</td><td class="olympic_points"><A HREF="/olympic/checkuser/'+data.resource_id+'/'+data.user_id+'" target="_blank">'
+                +   (data.sum_points ? data.sum_points : 0)+'</A> из '+data.maxpoints+'</td></tr>';
+            if (data.individual_end_date){
+                html += '<tr><td>Инд. срок <i class="fa fa-clock-o individual-end-date"></i></td><td class="individual-end-date">'+data.individual_end_date+'</td></tr>';
+            }
+            if (data.end) html += '<tr><td>Окончание решения</td><td class="olympic_end_date">'+data.end+'</td></tr>';
+            if (data.checkdate) html += '<tr><td>Дата проверки</td><td class="olympic_check_date">'+data.checkdate+'</td></tr>';
+            if (data.status_label) html += '<tr><td>Статус задания</td><td class="olympic_status">'+data.status_label + '</td></tr>';
+
+            html+='</table>';
+        }
+        if (additionalTests.length){
+            //ext_level '++'
+            html+='<div class="additionals_container'+($('.filter-subform #level').val()!=='base' ? ' ext_level' :'')+'">Промежуточные тесты:<table class="additionals_table">';
+            let printRow = function(title, rowDataCallback){
+                html+='<tr><td>'+title+'</td>';
+                for(let i=0;i<additionalTests.length;i++){
+                    let addData = additionalTests[i];
+                    html += rowDataCallback(addData);
+                }
+                html+='</tr>';
+            };
+            printRow('', function(data){
+                return '<td>'+data.olympic_title+'</td>';
+            });
+
+            let hasIndDate = false;
+            for(let i =0;i<additionalTests.length;i++) {if (additionalTests[i].individual_end_date) hasIndDate=true;}
+            if (hasIndDate){
+                printRow('Инд. срок', function(data){
+                    return '<td class="individual-end-date">'+(data.individual_end_date ? data.individual_end_date : '-')+'</td>' ;
+                });
+            }
+
+            printRow('Баллы', function(data){
+                return '<td title="'+data.olympic_title+'" class="olympic_points"><A HREF="/olympic/checkuser/'+data.resource_id+'/'+data.user_id+'" target="_blank">'
+                    +   (data.sum_points ? data.sum_points : 0)+'</A> из '+data.maxpoints+'</td>';
+            });
+
+            printRow('Окончание', function(data){
+                return '<td title="'+data.olympic_title+'" class="olympic_end_date">'+(data.end ? data.end : '-')+'</td>' ;
+            });
+
+            printRow('Статус', function(data){
+                return '<td title="'+data.olympic_title+'" class="olympic_status">'+(data.status_label ? data.status_label : '-')+'</td>';
+            });
+
+
+            html+='</table></div>';
+        }
+        var id = 'gradebook-'+ data.membership_id;
+        if (window.resultTestPopup.lastPopupId && (window.resultTestPopup.lastPopupId != id)){
+            $('#members_popup_'+window.resultTestPopup.lastPopupId
+                + ',#members_popup_pointer_'+window.resultTestPopup.lastPopupId
+                +',#members_popup_pointer_over_'+window.resultTestPopup.lastPopupId
+            ).remove();
+        }
+        window.resultTestPopup.lastPopupId = id;
+        en4.core.popup(popupPointer, id,
+            html, {dy: 10, hideTimeout: 2500}
+        );
+    };
+    /* Calendar in header */
+    var headerCalendar = null;
+    jQuery('#calendarNearestEventLink').click(function(e){
+            e.preventDefault();
+            var that = jQuery(this);
+
+            if(headerCalendar == null){
+                    headerCalendar = jQuery('#nearest-calendar-wrapper').show();
+                    jQuery.get(that.attr('href'), function(ret){
+                        var jHTML = jQuery(ret);
+                        jHTML.find('.calendar_entry_popup').appendTo('body');
+                        headerCalendar.html(jHTML[0].outerHTML);
+                    });
+            }else{
+                headerCalendar.slideToggle();
+            }
+
+            return false;
+    });
+    /*top banner scroll animation*/
+    
+    if (jQuery(document).scrollTop() < 10 && typeof window.preventDefaultAutoscroll == 'undefined'){
+        var excludeUrls = ['/event/', '/course/', '/group/', '/profile/', '/view/', '/academy/'];
+        if (document.location.pathname != '/'){
+            var hasExclude = false;
+            for(var i=0;i<excludeUrls.length;i++)
+            {
+                if (document.location.pathname.indexOf(excludeUrls[i])==0){
+                    hasExclude = true;
+                    break;
+                }
+            }
+            if (!hasExclude){
+                jQuery('html, body').animate({scrollTop:jQuery('#global_header_container').height() - 50}, 500);
+            }
+        }
+    }
+    
+    /*revslider bugfix*/
+    jQuery(window).resize(function(){
+        var repairBannerWid = function(){
+            jQuery('#rev_slider_6_1_wrapper').height( jQuery('#rev_slider_6_1').height()+ "px" );
+        };
+        repairBannerWid();
+        setTimeout(repairBannerWid, 50);
+    });
+});

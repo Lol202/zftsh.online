@@ -1,0 +1,107 @@
+jQuery(function($) {
+    if (!document.cookie.match(new RegExp('sidebaropen=([^;]+)'))){
+        document.cookie = 'sidebaropen=1; path=/';
+    }
+    var counterGrowDisable = false;
+    var counterGrow = function(){
+        if (counterGrowDisable) return;
+        var growedWidth = null;
+        $(this).find('.header_hor_short').hide();
+        $(this).find('.header_hor_long').show();
+        if (!growedWidth){
+            growedWidth = $(this)[0].scrollWidth - 5 + 'px';
+        }
+        $(this).css('width', growedWidth);
+    };
+    var counterShrink = function(){
+        if (counterGrowDisable) return;
+        $(this).find('.header_hor_long').hide();
+        $(this).find('.header_hor_short').show();
+        $(this).css('width', $(this).attr('data-original-width'));
+    };
+    var countersAnimate =function(){
+        if ($(this).attr('data-original-width')) return;
+        var btn = $(this);
+        var origWidth =  $(this).width()+'px';
+        $(this).attr('data-original-width', origWidth);
+        $(this).css('width', origWidth);
+        if (btn.find('.header_hor_long').length){
+            btn.mouseover(counterGrow);
+            btn.mouseout(counterShrink);
+        }
+    };
+
+
+    var controller = new slidebars();
+    controller.init();
+
+    var bodyScrollersToggle = function(is_closing){
+        if (is_closing || $('#zftsh-slidebar').width() <= 280){
+            $('body').css('overflow-y', '');
+        }else{
+            $('body').css('overflow-y', 'hidden');
+        }
+        setTimeout(function () {
+            $('#zftsh-slidebar').css('margin-right', '-'+$('#zftsh-slidebar').width()+'px');
+        },20);
+
+    };
+
+    $('#sidebar-toggler,#sidebar-closer').on('click', function (event) {
+        event.stopPropagation();
+        controller.toggle('zftsh-slidebar');
+    });
+    var baseWidth = 276;
+
+    var offsetElements = $('#global_wrapper,#global_header_container,.layout_page_footer');
+    var disableAnimation = false;
+    $( controller.events ).on( 'opening', function () {
+        offsetElements.css({
+            'transition-duration': disableAnimation ? '0ms' : '300ms',
+            'margin-right': baseWidth + 'px'
+        });
+        $('#main_menu').addClass('sidebar_opened');
+        $('body').addClass('sidebar_opened');
+        $('.header_hor_container .header_hor_btn').each(countersAnimate);
+        if ($('#zftsh-slidebar').width() > 280){
+            $('.header_hor_container .header_hor_btn').each(counterGrow);
+            counterGrowDisable = true;
+        }else if (counterGrowDisable){
+            counterGrowDisable = false;
+            $('.header_hor_container .header_hor_btn').each(counterShrink);
+        }
+        bodyScrollersToggle();
+        document.cookie = 'sidebaropen=1; path=/';
+    } );
+    //.obj-header.zftsh
+    $( controller.events ).on( 'closing', function () {
+        offsetElements.css({
+            'margin-right':''
+        });
+        $('#main_menu').removeClass('sidebar_opened');
+        $('body').removeClass('sidebar_opened');
+        bodyScrollersToggle(true);
+        document.cookie = 'sidebaropen=0; path=/';
+    } );
+
+    //animation
+    $('#zftsh-slidebar > .user  .avatar')
+        .mouseover(function(){$('#zftsh-slidebar > .user  .userhref').addClass('hover')})
+        .mouseout(function(){$('#zftsh-slidebar > .user  .userhref').removeClass('hover')});
+    $('#zftsh-slidebar > .course  img')
+        .mouseover(function(){$(this).parents('.course:first').find('.course-link').addClass('hover')})
+        .mouseout(function(){$(this).parents('.course:first').find('.course-link').removeClass('hover')});
+
+    //sidebar-auto-open
+    var sidebaropened = document.cookie.match(new RegExp('sidebaropen=([^;]+)'));
+    if (sidebaropened && parseInt(sidebaropened[1]) ){
+        disableAnimation = true;
+        $('#zftsh-slidebar').css('transitionDuration', '0s');
+        controller.open('zftsh-slidebar');
+        setTimeout(function(){
+            disableAnimation = false;
+            $('#zftsh-slidebar').css('transitionDuration', '0.3s');
+        }, 300);
+    }
+    $('#zftsh-slidebar').css('visibility', 'visible');
+});
