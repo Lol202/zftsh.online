@@ -1,0 +1,382 @@
+var _locationHashSrc = document.location.hash;
+var profileDirector = {
+    profileOriginalURL: '',
+    profileTitle: '',
+    activeTabName: '',
+    containerContentId: null,
+    division_id:0,
+    page:1,
+    loadedTabs:{},    
+    query: '',
+    tabLoadingProcess: false,
+    savedSubject: '',
+    __olWorkaround: function(){
+        if (['olympic.profile-olympics', 'olymp'].includes(this.activeTabName)
+            && !jQuery('.profile_content_olympic_profile_olympics').length
+            && jQuery('.profile_content_olymp').length
+        ){
+            this.activeTabName = 'olymp';
+            history.replaceState(null,null,window.location.href.replace('/olympic.profile-olympics', '/olymp'));
+        }
+    },
+    init: function(){
+       this.__olWorkaround();
+       this.loadedTabs[this.activeTabName] = jQuery('.profile_content_'+this._classifyTabName()+':first');
+       this.paginatorAjaxLinkage(this.loadedTabs[this.activeTabName]);
+       this.searchAjaxLinkage(this.loadedTabs[this.activeTabName]);
+       this.activateTabButton();
+       this.savedSubject = en4.core.subject.guid;
+        if (jQuery('.tabs_title').length) jQuery('.tabs_title').html( jQuery('a[widget="'+this.activeTabName+'"]:first').text() );
+    },
+    initPlain: function()
+    {
+       this.__olWorkaround();
+       var self = this;
+       jQuery('.profile_content_tab').each(function(){
+           self.loadedTabs[jQuery(this).attr('widget')] = jQuery(this);
+           self.searchAjaxLinkage(jQuery(this));
+           if (jQuery(this).attr('widget').indexOf('.') == -1){
+            self.paginatorAjaxLinkage(jQuery(this));
+           }
+       });
+       setTimeout(function(){
+            //без таймаута скролл глючит - не убирать
+            if (self.activeTabName){
+                self.scrollTabActivate(self.activeTabName, true);
+            }
+       }, 100);
+    },
+    searchAjaxLinkage: function(tabContentElement)
+    {
+        var self = this;
+        var searchForm = tabContentElement.find('.core_item_display_search_form');
+        var backSearchBtn = tabContentElement.find('.back-to-main-list-link');
+        searchForm.submit(function(e){
+            e.preventDefault();
+            self.search(tabContentElement.attr('widget'));
+            return false;
+        });
+
+        backSearchBtn.click(function(e){
+            e.preventDefault();
+            self.activeTabQueryValue('');
+            self.search(tabContentElement.attr('widget'));  		   
+            return false;
+        });
+
+        if ( ['olympic.profile-olympics', 'olymp'].includes(tabContentElement.attr('widget')) ){
+            let divisions = jQuery('.division_title');
+            let olympBlocks = jQuery('[data-role="olympic-widget"]');
+
+            searchForm.find('[name="query"]').keyup(function(){
+                let query = jQuery(this).val().toLocaleLowerCase();
+                if (query.length > 0) divisions.hide();
+                else divisions.show();
+                let match = function(text, query, id){
+                    if (!text) return false;
+                    query = query.toLocaleLowerCase().split(',');
+                    for(let i=0;i<query.length;i++){
+                        let q = jQuery.trim(query[i]);
+                        if (!q) continue;
+                        if (text.toLocaleLowerCase().indexOf(q) != -1 || id==q) return true;
+                    }
+                    return false;
+                };
+                olympBlocks.each(function(){
+                    let thisBlock = jQuery(this);
+                    let id = thisBlock.attr('id') ? thisBlock.attr('id').split('full_olympic_')[1] : null;
+                    if (query.length > 3){
+                        if (match(thisBlock.text(), query, id)){
+                            thisBlock.show();
+                        }else{
+                            thisBlock.hide();
+                        }
+                    }else if (query.length > 0){
+                        if (match(thisBlock.find('[id^="h_olymp"]').text(), query, id)){
+                            thisBlock.show();
+                        }else{
+                            thisBlock.hide();
+                        }
+                    }else{
+                        thisBlock.show();
+                    }
+                });
+            });
+        }
+    },
+    paginatorAjaxLinkage: function(tabContentElement)
+    {
+        tabContentElement.find('.paginationControl > li > a').each(function(){
+            var link = jQuery(this);
+            var ajaxURL = link.attr('href');
+            if (!link.attr('ajaxbinded')){
+                link.ajaxButton();
+                link.attr('ajaxbinded', '1');
+                link.attr('auto-ajax-disable', '1');
+
+                var division_lay = link.parents('.division:first');
+                var division_id = 0;
+                if (division_lay.length && division_lay.attr('for')){
+                    division_id = parseInt(division_lay.attr('for').split('_')[1]);
+                }
+                
+                var page = parseInt(link.attr('page'));
+                
+                link.click(function(event){
+                    profileDirector.pager(tabContentElement.attr('widget'), division_id, page, event);
+                    event.preventDefault();
+                });
+
+                var thisTabHref = jQuery('.profile_'+profileDirector._classifyTabName(tabContentElement.attr('widget'))+' > a:first').attr('href');
+                link.attr('href', thisTabHref + '/page/' + page);
+            }
+        });
+    },
+    _getURL : function(widget, division, page){
+        var loadURL = '/widgetRender/core.profile-tabs/ajax/'+this.subject+'/tabname/'+widget+'/onlyChildrenContentRender/1';
+        if (division){
+            loadURL += '/division_id/'+division;
+            if (page > 1){
+                loadURL += '/page/'+page;
+            }
+        }else{
+            loadURL += '/page/'+page;
+        }        
+        
+        if (typeof this.loadedTabs[widget] != 'undefined'){
+        	var query = profileDirector.activeTabQueryValue();
+        	if (profileDirector.query){
+                loadURL += '/query/'+encodeURI(query);
+            }
+        }
+        
+        return loadURL;
+    },
+    activeTabQueryValue: function(value){
+    	var tab = this.loadedTabs[this.activeTabName];
+    	if(!tab) return;
+    	var input = jQuery('.core_item_display_search_form [name=query]', tab);
+    	if(value === undefined){
+    		this.query = input.val();       		       		
+    	} else {
+    		input.val(value);
+    		this.query = value;
+    	}
+    	return this.query;
+    },
+    _classifyTabName : function(tabName)
+    {
+        if (tabName == undefined) tabName = this.activeTabName;
+        return (tabName + '').replace('.','_').replace(/-/g,'_');
+    },
+    activateTabButton: function(){
+        if (this.loadedTabs[this.activeTabName]) this.loadedTabs[this.activeTabName].animate({opacity: 1}, 200);
+        jQuery('.profile_content_tabname,.obj-main-tabs--controller__btn,.sidebar_custom_menu a,#menu-main a[widget],#main_tabs a[widget]').removeClass('active');
+        if (!this.activeTabName) return;
+        jQuery('.profile_'+this._classifyTabName() ).addClass('active');
+        jQuery('[widget="'+this.activeTabName+'"]').addClass('active');
+    },
+    updateBrowserURL: function(title, ignoreHash){
+        if (typeof window.history.replaceState == 'function'){
+            var browserURL = (this.profileOriginalURL=='/'?'/view':this.profileOriginalURL) 
+            	+ (this.activeTabName ? ('/'+this.activeTabName) : '');
+            if (this.division_id){
+                if (en4.core.subject.type == 'user'){
+                    /*user always has one division by tab*/
+                    browserURL += '/'+this.page;
+                }else{
+                    browserURL += '/'+this.division_id+'/'+this.page;
+                }
+            }else if (this.page > 1){
+                browserURL += '/page/'+this.page;
+            }
+            var query = this.activeTabQueryValue();
+            if(query){
+            	browserURL += '/query/'+query;
+            }
+            var browserTitle = title ? (this.profileTitle + ' — ' + jQuery('<p>' + title + '</p>').text()) : document.title;
+            window.history.replaceState(null, browserTitle, browserURL + (ignoreHash ? '' : document.location.hash));
+            document.title = browserTitle;
+        }
+    },
+    tabSwitch: function(widget, title, paramsBase64){
+        if (this.tabLoadingProcess) return;
+        if (this.activeTabName == widget){
+            this.activateTabButton();
+            return;
+        }
+        jQuery('.profile_content_tab').animate({opacity: 0}, 200);
+        var tabElement = jQuery('.profile_'+this._classifyTabName(widget)+' > a');
+        if (!tabElement.length){
+            tabElement = jQuery('.profile_'+this._classifyTabName(widget) + ':first');
+        }
+
+        if (jQuery('.tabs_title').length) jQuery('.tabs_title').html( tabElement.text() );
+        if (typeof this.loadedTabs[widget] != 'undefined'){
+            jQuery('.profile_content_tab').hide();
+            this.loadedTabs[widget].show();
+            this.activeTabName = widget;
+            this.division_id = this.loadedTabs[widget].attr('division_id') ? parseInt(this.loadedTabs[widget].attr('division_id')) : 0;
+            this.page        = this.loadedTabs[widget].attr('page') ? parseInt(this.loadedTabs[widget].attr('page')) : 1;
+            this.activateTabButton();
+            this.updateBrowserURL(title);
+            return;
+        }
+
+        tabElement.ajaxButton({once:true});
+        this.query = null;
+        var URL = this._getURL(widget, 0, 0);
+        var paramsJsoned = typeof atob == 'function' ? atob(paramsBase64) : '{}';
+        var self = this;
+        this.tabLoadingProcess = true;
+        return jQuery.ajax({
+                "url" : URL,
+                "method": "POST",
+                "dataType": "html",
+                "data" : 
+                {
+                    "params": paramsJsoned
+                },
+        }).done(function(html) {
+            self.tabLoadingProcess = false;
+            var jHTML = jQuery(html);
+            self.loadedTabs[widget] = jHTML.filter('.profile_content_tab:first');
+            self.loadedTabs[widget].css('opacity', '0');
+            self.paginatorAjaxLinkage(self.loadedTabs[widget]);
+            self.searchAjaxLinkage(self.loadedTabs[widget]);
+
+            let contentContainer = jQuery('.profile_content_tab').hide().parent();
+            jQuery('.profile_content_tab[widget="'+widget+'"]:first').remove();
+            contentContainer.append(jHTML);
+
+
+            self.division_id = 0;
+            self.page = 1;
+            self.activeTabName = widget;
+            self.activateTabButton();
+            self.updateBrowserURL(title);
+            //init methods - possible need to advanced widgets with mootools scripts/smoothboxes
+            en4.core.runonce.trigger();
+            Smoothbox.bind();
+            if (typeof window.itemDisplayAfterAjax == 'function'){
+                window.itemDisplayAfterAjax();
+            }
+        }).fail(function() {
+            self.tabLoadingProcess = false;
+            /*SILENCE - at now*/
+        });
+    },
+    scrollTabActivate:function(activeTab, ignoreEqv){
+        var self = this;
+        if (ignoreEqv!==true && this.activeTabName == activeTab){
+            return;
+        }
+        this.activeTabName = activeTab;
+        this.division_id = 0;
+        this.page = 0;
+        this.activateTabButton();
+        this.updateBrowserURL();
+        var scrollPosition;
+        if (_locationHashSrc && jQuery(_locationHashSrc).length){
+            scrollPosition = jQuery(_locationHashSrc).offset().top - 150;
+        }else{
+            if (!jQuery('.profile_content_'+ this._classifyTabName() ).length) return;
+            scrollPosition = jQuery('.profile_content_'+ this._classifyTabName() ).offset().top - 150;
+        }
+        window.scrollTo({
+            top: scrollPosition,
+            behavior: 'smooth'
+        });
+    },
+    pager: function(widget, division_id, page)
+    {
+        var tabElement =  jQuery('.profile_'+this._classifyTabName(widget)+' > a:first');
+        this.activeTabName = widget;
+        var URL = this._getURL(widget, division_id, page);
+        var paramsJsoned = (tabElement.attr('passparams') && typeof atob == 'function') ? atob(tabElement.attr('passparams')) : '{}';
+        var self = this;
+        return jQuery.ajax({
+                "url" : URL,
+                "method": "POST",
+                "dataType": "html",
+                "data" : 
+                {
+                    "params": paramsJsoned
+                },
+        }).done(function(html) {
+            var jHTML = jQuery(html);
+            if (division_id){
+                var isDivisioned = true;
+                var selector = ".division[for=division_" + division_id + "]";
+            }else{
+                var isDivisioned = false;
+                var selector = '.profile_content_'+self._classifyTabName(widget);
+            }
+            jQuery(selector).html('');
+            var filtered = jHTML.find(selector);
+            if (!filtered.length)
+            {
+                filtered = jHTML.filter(selector);
+            }
+            jQuery(selector).replaceWith(filtered);
+            if (!isDivisioned){
+                self.loadedTabs[widget] = jQuery(selector);
+            }
+            self.activeTabName = widget;
+            var widgetContainer = isDivisioned ? jQuery(selector).parents('.profile_content_tab:first') : jQuery(selector);
+            self.paginatorAjaxLinkage(widgetContainer);
+            self.searchAjaxLinkage(widgetContainer);
+            
+            self.division_id = division_id;
+            self.page = page;
+            self.updateBrowserURL();
+            //init methods - possible need to advanced widgets with mootools scripts/smoothboxes
+            en4.core.runonce.trigger();
+            Smoothbox.bind();
+            if (typeof window.itemDisplayAfterAjax == 'function'){
+                window.itemDisplayAfterAjax();
+            }
+        }).fail(function() {
+            /*SILENCE - at now*/
+        });
+    },
+    search: function (widget){
+    	var self = this;
+        this.activeTabName = widget;
+    	this.page = 0;
+    	this.division_id = 0;
+    	jQuery('.profile_'+this._classifyTabName(widget)+' > a').ajaxButton({once:true});
+        var URL = this._getURL(widget, 0, 0);
+        
+        return jQuery.ajax({
+                "url" : URL,
+                "method": "POST",
+                "dataType": "html"
+        }).done(function(html) {
+            var jHTML = jQuery(html).filter('.profile_content_tab:first');
+            self.updateBrowserURL();
+            let sectionTitle = self.loadedTabs[widget].find('.vertical_container_inner_block > .division_title, [type="widget"] > .division_title');
+            if (sectionTitle.length){
+                sectionTitle.remove().insertBefore(jHTML.find('[type="widget"] > :first-child'));
+            }
+            self.loadedTabs[widget].replaceWith(jHTML);
+            self.loadedTabs[widget] = jHTML;
+            
+            self.paginatorAjaxLinkage(self.loadedTabs[widget]);
+            self.searchAjaxLinkage(self.loadedTabs[widget]);
+            
+            self.division_id = 0;
+            self.page = 1;
+            self.activateTabButton();
+            self.loadedTabs[widget].find('input[name=query]').focus().val("").val(self.query);
+            
+            //init methods - possible need to advanced widgets with mootools scripts/smoothboxes
+            en4.core.runonce.trigger();
+            Smoothbox.bind();
+            
+        }).fail(function() {
+            /*SILENCE - at now*/
+        });
+	}, 
+    
+};

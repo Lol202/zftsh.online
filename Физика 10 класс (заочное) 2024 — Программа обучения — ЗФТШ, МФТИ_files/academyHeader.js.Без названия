@@ -1,0 +1,83 @@
+jQuery(function($){
+    var fishload = function(){
+        if (!$.fn.superfish) setTimeout(fishload,100);
+        else $('#zftsh_main_menu .menu').superfish({
+            delay:		 $('#zftsh_main_menu').data('superfish-delay')			// 0.25 second delay on mouseout
+        });
+    };
+    fishload();
+
+    var auto_complete = null;
+    function activateAutocompleter(searchVar)
+    {
+        if ( auto_complete ) {
+            auto_complete.options.postVar = searchVar;
+            return;
+        }
+
+        auto_complete = new Autocompleter.Request.JSON('zftsh_top_search_field', '/zftsh-autocomplete', {
+            'postVar': searchVar,
+            'width': '350px',
+            'selectFirst': true,
+            'minLength': 2,
+            'injectChoice': function (token) {
+                var choice = new Element('li', {
+                    'class': 'autocompleter-choice',
+                    'data-type': token.type,
+                    'data-name': token.label,
+                    'data-id' : token.id
+                });
+                var item_html = '<span class="choice-id">[' + token.id + ']</span> ' +
+                    '<span class="choice-name">' + token.label + '</span><br>';
+                if ( token.mobilephone ) {
+                    item_html += 'Моб. тел.: <span>' + token.mobilephone + '</span>&nbsp;&nbsp;';
+                }
+                if ( token.homephone ) {
+                    item_html += 'Дом. тел.: <span>' + token.homephone + '</span>&nbsp;&nbsp;';
+                }
+                if ( token.member_code ) {
+                    item_html += 'Номер: <span style="font-weight: bold;">' + token.member_code + '</span>';
+                }
+                if ( token.title_code ) {
+                    item_html += 'Код: <span>' + token.title_code + '</span>';
+                }
+                if ( token.academies ) {
+                    item_html += 'Программы: <span>' + token.academies.join(', ') + '</span>';
+                }
+                new Element('p', {
+                    'html' :  item_html
+                }).inject(choice);
+                this.addChoiceEvents(choice).inject(this.choices);
+                choice.store('autocompleteChoice', token);
+            },
+            'onChoiceSelect': function (choice) {
+                choice = $(choice);
+                var id = choice.attr('data-id');
+                var type = choice.attr('data-type');
+                if ( type == 'user' || type == 'teacher' ) {
+                    window.location.href = '/zftsh-user-profile/' + id + '/learninfo';
+                } else if ( type == 'course' ) {
+                    window.location.href = '/course/' + id;
+                }
+            },
+            'onRequest': function(data){
+                $('#zftsh_top_search_field').css('background-image', 'url(/application/themes/clean/images/new/loading.gif)');
+                //alert($('#zftsh_top_search_field').css('background-image'));
+
+            },
+            'onComplete': function(data){
+                $('#zftsh_top_search_field').css('background-image', 'url(/application/themes/clean/images/new/ic-min-search.png)');
+            },
+        });
+    }
+	if ($('#zftsh_top_search').length){
+		window.checkZftshTopSearchFilter = function(e) {
+			var searchVar = 'pupil';
+			if ( e && $(e).is(':checked') ) {
+				searchVar = $(e).val();
+			}
+			activateAutocompleter(searchVar);
+		};
+		checkZftshTopSearchFilter($("input[name='search_by_type']:checked")[0]);
+    }
+});

@@ -1,0 +1,57 @@
+/**
+ * Abitu
+ *
+ * @author     Goncharov ( sunnydayd@mail.ru )
+ * @description плагин, который при нажатии элемента  который отправляет ajax вешает определённый класс на кнопку, и снимает этот класс, когда ajax завершился
+ */
+jQuery.fn.ajaxButton = function(params) {
+    if (typeof params == 'undefined')  params = {};
+    var cls = typeof params.class == 'undefined' ? 'ajaxProcessing' : params.class;
+    var maxdelay = typeof params.maxdelay == 'undefined' ? 3000 : params.maxdelay;
+    var once = typeof params.once == 'undefined' ? false : params.once;
+    var self = this;
+    var clickHooked = [];
+    var ajaxComplete = function(event /*event,request, settings*/ ) {
+        self.removeClass(cls);
+        for(var i=0;i<clickHooked.length;i++){
+            var on = clickHooked.pop();
+            if (on.onclick){
+                on.clickedON.attr('onclick', on.onclick);
+            }
+        }
+        if (once)
+        {
+            jQuery( document ).unbind("ajaxComplete", arguments.callee);
+        }else{
+            self.on('click', ajaxBegin);
+        }
+    };
+    var ajaxBegin = function(event){
+        var clickedON = jQuery(this);
+        var onclick = clickedON.attr('onclick');
+        if (clickedON.hasClass(cls)){
+            if (event){
+                event.stopPropagation();
+            }
+            return;
+        }
+        if (typeof params.click == 'function'){
+            params.click.apply(this, [event]);
+        }
+        clickHooked.push({clickedON:clickedON, onclick: onclick});
+        clickedON.addClass(cls);
+        clickedON.removeAttr('onclick');
+        self.unbind('click');
+        setTimeout(function(){
+            ajaxComplete();
+        },maxdelay);
+        jQuery( document ).bind("ajaxComplete", ajaxComplete);
+    };
+    if (once)
+    {
+        ajaxBegin.apply(this[0], [null]);
+    }else{
+        this.on('click', ajaxBegin);
+    }
+    return this;
+};
